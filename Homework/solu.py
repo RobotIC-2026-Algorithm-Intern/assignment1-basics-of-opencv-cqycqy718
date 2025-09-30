@@ -1,35 +1,41 @@
 import cv2
 import numpy as np
+import json
 
 class ColorRange:
-    def __init__(self):
+    def __init__(self, config=None):
         self.ranges = {}
+        if config is not None:
+            self.load_from_config(config)
+
+    def load_from_config(self, config):
+        for color, bounds_list in config["color_ranges"].items():
+            for lower, upper in bounds_list:
+                self.add_hsv(color, lower, upper)
 
     def add_hsv(self, color_name, lower, upper):
-    
         if color_name not in self.ranges:
             self.ranges[color_name] = []
         self.ranges[color_name].append((np.array(lower), np.array(upper)))
 
     def get_mask(self, hsv_img, color_name):
-
         mask = np.zeros(hsv_img.shape[:2], dtype=np.uint8)
         for lower, upper in self.ranges[color_name]:
-            mask = cv2.inRange(hsv_img, lower, upper)
+            mask |= cv2.inRange(hsv_img, lower, upper)
         return mask
 
     def get_multi_mask(self, hsv_img, color_names):
-    
         mask = np.zeros(hsv_img.shape[:2], dtype=np.uint8)
         for name in color_names:
             mask |= self.get_mask(hsv_img, name)
         return mask
 
 class BallDetector:
-    def __init__(self, color_range):
+    def __init__(self, color_range, roi=None):
         self.color_range = color_range
+        self.roi = roi
 
-    def set_roi(self, roi=()):
+    def set_roi(self, roi):
         self.roi = roi
 
     def detect(self, frame):
@@ -72,15 +78,15 @@ class BallDetector:
             if cv2.waitKey(25) & 0xFF == ord('q'):
                 break
         cam.release()
-       
-def main():
-    color_range = ColorRange()
-    color_range.add_hsv('red', [237, 20, 50], [250, 255, 255])
-    color_range.add_hsv('blue', [160, 50, 50], [192, 255, 255])
-    color_range.add_hsv('purple', [190, 5, 50], [220, 255, 255])
+        cv2.destroyAllWindows()  
 
-    detector = BallDetector(color_range)
-    detector.set_roi((90, 320, 210, 430))
+def main():
+    with open("Homework/config.json", "r", encoding="utf-8") as f:
+        config = json.load(f)
+
+    color_range = ColorRange(config)
+    roi = config["roi"]
+    detector = BallDetector(color_range, roi=roi)
 
     detector.process_video("res/output.avi", "output.avi")
     detector.process_video("res/output1.avi", "output1.avi")
